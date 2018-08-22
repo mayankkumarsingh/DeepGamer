@@ -1,0 +1,2 @@
+model_checkpoint_path: "C:\\Mayank\\Coursera\\Projects\\DeepGamer\\Learn_to_Drive_by_watching\\nfs-run-0.001-LR-alexnet_mdfd-5-epochs-119K-trsize.model"
+all_model_checkpoint_paths: "C:\\Mayank\\Coursera\\Projects\\DeepGamer\\Learn_to_Drive_by_watching\\nfs-run-0.001-LR-alexnet_mdfd-5-epochs-119K-trsize.model"
