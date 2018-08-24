@@ -54,7 +54,7 @@ while(True):
 
     lane_masked_image = find_lane_markers(orig_screengrab)
     # output of find_lane_markers
-    cv2.imshow('Raw Lane Detection', lane_masked_image)
+    #cv2.imshow('Raw Lane Detection', lane_masked_image)
 
     print('Grabbing + Displaying took {} seconds'.format(time.time() - tic))
     if cv2.waitKey(25) & 0xFF==ord('q'):
