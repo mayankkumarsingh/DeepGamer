@@ -12,6 +12,9 @@ dest_br = [342+30-0,480]
 dest_tl = [262,0]
 dest_tr = [360,0]
 
+src = np.float32([src_tl, src_tr, src_br, src_bl])
+dst = np.float32([dest_tl, dest_tr, dest_br, dest_bl])
+
 # Initialziation for Histogram Plots
 COLOR_BOX_BORDER = np.array([100, 160, 255],np.uint8)
 COLOR_HIST_PLOT = np.array([225, 150, 50],np.uint8)
@@ -26,10 +29,10 @@ def BirdsEyePerspective(img, capture_region):
     IMAGE_W = capture_region[2] - capture_region[0]
     print(IMAGE_H,IMAGE_W)
 
-    src = np.float32([src_tl, src_bl, src_br, src_tr])
-    dst = np.float32([dest_tl, dest_bl, dest_br, dest_tr])
+    # src = np.float32([src_tl, src_tr, src_br, src_bl])
+    # dst = np.float32([dest_tl, dest_tr, dest_br, dest_bl])
     M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
-    Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
+    # Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
 
     warped_img = cv2.warpPerspective(img, M, (IMAGE_W, IMAGE_H), flags=cv2.INTER_LINEAR) # Image warping
 
@@ -41,9 +44,9 @@ def BirdsEyePerspectiveInverse(img, capture_region):
     IMAGE_W = capture_region[2] - capture_region[0]
     print(IMAGE_H,IMAGE_W)
 
-    src = np.float32([src_tl, src_bl, src_br, src_tr])
-    dst = np.float32([dest_tl, dest_bl, dest_br, dest_tr])
-    M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
+    # src = np.float32([src_tl, src_tr, src_br, src_bl])
+    # dst = np.float32([dest_tl, dest_tr, dest_br, dest_bl])
+    # M = cv2.getPerspectiveTransform(src, dst) # The transformation matrix
     Minv = cv2.getPerspectiveTransform(dst, src) # Inverse transformation
 
     warped_img = cv2.warpPerspective(img, Minv, (IMAGE_W, IMAGE_H), flags=cv2.INTER_LINEAR) # Image warping
@@ -89,6 +92,19 @@ def mask_vertices(l,t,b,r,w,h):
 
     # return the chosen vertices
     return vertices
+
+def mask_cleanup(mask, vertices):
+    """
+
+    :param mask:
+    :param vertices:
+    :return: clean_mask
+    """
+
+    for i in range(len(vertices)-1):
+        mask = cv2.line(mask, (vertices[i][0], vertices[i][1]), (vertices[i+1][0], vertices[i+1][1]), 0, 3)
+
+    return mask
 
 
 def abs_sobel(img_ch, orient='x', sobel_kernel=3):
@@ -273,7 +289,6 @@ def find_lane_markers(img):
 
 
 def histogram_lane_detection(img, steps, search_window, h_window, peak_threshold, frame_debug):
-
     """
     Tries to detect lane line pixels by applying a sliding histogram.
     :param img: binary image (Always pass a grayscale image to this fn)
@@ -292,7 +307,7 @@ def histogram_lane_detection(img, steps, search_window, h_window, peak_threshold
     pixels_per_step = img.shape[0] // steps
     print(steps)
     if frame_debug:
-        histogram_overlay = np.zeros((img.shape[0],img.shape[1],3), np.uint8)
+        histogram_overlay = np.zeros((img.shape[0], img.shape[1], 3), np.uint8)
 
     for i in range(steps):
         start = masked_img.shape[0] - (i * pixels_per_step)
@@ -301,52 +316,62 @@ def histogram_lane_detection(img, steps, search_window, h_window, peak_threshold
         histogram = np.sum(masked_img[end:start, :], axis=0)
         histogram_smooth = signal.medfilt(histogram, h_window)
         peaks = np.array(signal.find_peaks_cwt(histogram_smooth, np.arange(1, 30)))
-        peaks = peaks[np.nonzero(histogram_smooth[peaks] > peak_threshold)]
+        if len(peaks) > 0:
+            peaks = peaks[np.nonzero(histogram_smooth[peaks] > peak_threshold)]
 
-        if(frame_debug):
-            histogram_overlay[start-2:start,:,:] = COLOR_BOX_BORDER
-            histogram_overlay[end-2:end,:,:] = COLOR_BOX_BORDER
-            histogram_overlay[end:start,0:2,:] = COLOR_BOX_BORDER
-            histogram_overlay[end:start,-2:,:] = COLOR_BOX_BORDER
-            #histogram_overlay[end:start:(start-end)//4,1:-1:20,:] = COLOR_GRID
+        if (frame_debug):
+            histogram_overlay[start - 2:start, :, :] = COLOR_BOX_BORDER
+            histogram_overlay[end - 2:end, :, :] = COLOR_BOX_BORDER
+            histogram_overlay[end:start, 0:2, :] = COLOR_BOX_BORDER
+            histogram_overlay[end:start, -2:, :] = COLOR_BOX_BORDER
+            # histogram_overlay[end:start:(start-end)//4,1:-1:20,:] = COLOR_GRID
             hst_smooth_log = np.log1p(histogram_smooth)
-            histogram_overlay[start-np.uint8(np.log1p(peak_threshold)*(pixels_per_step-4)/max(hst_smooth_log)),1:-1:1,:] = COLOR_THRESHOLD
-            for peak in peaks:
-                histogram_overlay[end:start:2,peak-1:peak+1,:] = COLOR_GRID
-            hst = np.uint8(hst_smooth_log*(pixels_per_step-4)/max(hst_smooth_log))
-            for i in range(len(histogram_smooth)-4):
-                histogram_overlay[start-hst[i]-2:start-hst[i],i:i+2,:] = COLOR_HIST_PLOT
-        print('Length of Peaks: ',len(peaks))
-        if(len(peaks) > 0):
+            histogram_overlay[start - np.uint8(np.log1p(peak_threshold) * (pixels_per_step - 4) / max(hst_smooth_log)),
+            1:-1:1, :] = COLOR_THRESHOLD
+            if len(peaks) > 0:
+                for peak in peaks:
+                    histogram_overlay[end:start:2, peak - 1:peak + 1, :] = COLOR_GRID
+            hst = np.uint8(hst_smooth_log * (pixels_per_step - 4) / max(hst_smooth_log))
+            for i in range(len(histogram_smooth) - 4):
+                histogram_overlay[start - hst[i] - 2:start - hst[i], i:i + 2, :] = COLOR_HIST_PLOT
+        print('')
+        print('Length of Peaks: ', len(peaks))
+
+        if (len(peaks) > 0):
             for peak in peaks:
                 existing_lane = False
-                x,y = peak, center
+                x, y = peak, center
                 print('Current Peak: ', peak)
                 if (len(all_x) == 0):
                     print('Creating First Entry in Dictionary')
-                    all_x[ctr] = np.full((1,),x + search_window[0]) # create a numpy array with 1 entry x
-                    all_y[ctr] = np.full((1,),y) # create a numpy array with 1 entry y
+                    all_x[ctr] = np.full((1,), x + search_window[0])  # create a numpy array with 1 entry x
+                    all_y[ctr] = np.full((1,), y)  # create a numpy array with 1 entry y
                     ctr = ctr + 1
                 else:
-                    for r in range(len(all_x)):
-                        if(abs(x + search_window[0] - all_x[r][-1]) < max_lane_width):
-                            print('Appending Point {},{} to Lane number {}'.format(x, y, r))
-                            all_x[r] = np.append(all_x[r], x + search_window[0])
-                            all_y[r] = np.append(all_y[r], y)
-                            existing_lane = True
-                            break
+                    dist = []
+                    for key in all_x.keys():
+                        dist.append(abs(x + search_window[0] - all_x[key][-1]))
+                    min_dist_idx = dist.index(min(dist))
+                    print(dist)
+                    if ( dist[min_dist_idx] < max_lane_width ):
+                        print('Appending Point {},{} to Lane number {}'.format(x, y, min_dist_idx))
+                        all_x[min_dist_idx] = np.append(all_x[min_dist_idx], x + search_window[0])
+                        all_y[min_dist_idx] = np.append(all_y[min_dist_idx], y)
+                        existing_lane = True
                     # Create a New entry if no corresponding lane exists
                     if (not existing_lane):
                         print('Creating a New lane - number ', ctr)
-                        all_x[ctr] = np.full((1,),x + search_window[0]) # create a numpy array with 1 entry x
-                        all_y[ctr] = np.full((1,),y) # create a numpy array with 1 entry y
+                        all_x[ctr] = np.full((1,), x + search_window[0])  # create a numpy array with 1 entry x
+                        all_y[ctr] = np.full((1,), y)  # create a numpy array with 1 entry y
                         ctr = ctr + 1
 
     print(len(all_x), len(all_y))
-    for i in range(len(all_x)):
-        all_x[i],all_y[i] = outlier_removal(all_x[i],all_y[i])
+    print(all_x)
+    if len(all_x) > 0:
+        for i in range(len(all_x)):
+            all_x[i], all_y[i] = outlier_removal(all_x[i], all_y[i])
 
-    if(frame_debug):
+    if (frame_debug):
         print(histogram_overlay.shape)
         return histogram_overlay, all_x, all_y
     else:
@@ -566,3 +591,41 @@ def check_lines(self, left_x, left_y, right_x, right_y):
             right_detected = True
 
     return left_detected, right_detected
+
+def laneline_color(laneline_type):
+    """
+
+    :param laneline_type: type of laneline - enumerated in class lanetype in Line.py
+    :return: lanecolor: RGB Color code of the laneline
+    """
+    lane_color = []
+    lane_color.append((255,255,255))    # lane_color[0]
+    lane_color.append((255,255,255))    # lane_color[1]
+    lane_color.append((200,200,200))    # lane_color[2]
+    lane_color.append((200,200,200))    # lane_color[3]
+    lane_color.append((255,200,0))      # lane_color[4]
+    lane_color.append((255,200,0))      # lane_color[5]
+
+    return lane_color[laneline_type]
+
+def cvplot(plotname, matrix):
+    """
+    Plots the matrix using opencv
+    :param matrix:
+    :return:
+    """
+    dim = len(matrix.shape)
+    if dim == 2:
+        cv2.imshow(plotname, matrix)
+        print('Waiting for a keystroke')
+        cv2.waitKey(0)
+    else:
+        if dim == 3:
+            assert (matrix.shape[2] == 3) # 3 channel image
+            cv2.imshow(plotname, cv2.cvtColor(matrix, cv2.COLOR_RGB2BGR))
+            print('Waiting for a keystroke')
+            cv2.waitKey(0)
+        else:
+            print('not a grayscale or 3 channel image')
+
+
